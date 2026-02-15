@@ -23,13 +23,13 @@ def getSocketInfo():
     print(f'IP: {ip}')
 
 def quitFunction(clientSocket):
-    command = "Quit"
+    command = "quit"
     data = sendCommand(clientSocket, command)
     print(data)
 
 def sendCommand(clientSocket, command):
     full_cmd = command + "\r\n"
-    dataOut = command.encode("utf-8")
+    dataOut = full_cmd.encode("utf-8")
     clientSocket.sendall(dataOut)
     data = receiveData(clientSocket)
     return data
@@ -95,7 +95,7 @@ def listFiles(clientSocket):
     return True
 
 def changeDirectory(clientSocket, directory):
-    command = f"CWD {directory}\r\n"
+    command = f"cd {directory}\r\n"
     response = sendCommand(clientSocket, command)
     print(response)
 
@@ -103,7 +103,7 @@ def getFiles(clientSocket, fileName):
     pasvStatus, dataSocket = modePASV(clientSocket)
 
     if pasvStatus == 227:
-        command = f"RETR {fileName}\r\n"
+        command = f"get {fileName}\r\n"
         response = sendCommand(clientSocket, command)
         print(response)
 
@@ -141,7 +141,7 @@ def putFiles(clientSocket, fileName):
     pasvStatus, dataSocket = modePASV(clientSocket)
 
     if pasvStatus == 227:
-        command = f"STOR {fileName}\r\n"
+        command = f"put {fileName}\r\n"
         response = sendCommand(clientSocket, command)
         print(response)
 
@@ -162,7 +162,7 @@ def putFiles(clientSocket, fileName):
 
 
 def deleteFiles(clientSocket, fileName):
-    command = f"DELE {fileName}\r\n"
+    command = f"delete {fileName}\r\n"
     response = sendCommand(clientSocket, command)
     print(response)
 
@@ -186,7 +186,7 @@ def main():
         return
 
     dataIn = receiveData(clientSocket)
-    dataIn = clientSocket.recv(1024)
+    #dataIn = clientSocket.recv(1024)
     print(dataIn)
 
     status = 0
@@ -205,7 +205,7 @@ def main():
 
     if status == 230:
         while True:
-            cmd_input = input("myftp>").strip.split(maxsplit=1)
+            cmd_input = input("myftp>").strip().split(maxsplit=1)
             if not cmd_input: continue
 
             action = cmd_input[0].lower()
