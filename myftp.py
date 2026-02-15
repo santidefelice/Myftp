@@ -66,105 +66,108 @@ def listFiles(clientSocket):
     pasvStatus, dataSocket = modePASV(clientSocket)
 
     if pasvStatus == 227:
-
-        command = "ls\r\n"
-        response = sendCommand(clientSocket, command)
+        response = sendCommand(clientSocket, "LIST")
         print(response)
 
         if response.startswith('150') or response.startswith('125'):
-            fileList = b""
+            payload = ""
             while True:
-                chunk =dataSocket.recv(4096)
+                chunk = dataSocket.recv(4096).decode("utf-8")
                 if not chunk:
                     break
-                fileList += chunk
+                payload += chunk
 
-            print(fileList.decode("utf-8"))
+            print(payload)
             dataSocket.close()
 
             finalResponse = receiveData(clientSocket)
             print(finalResponse)
+            return True
         else:
             print("Failed to list files")
             dataSocket.close()
             return False
     else:
         print("Failed to establish data connection")
-        dataSocket.close()
+        if dataSocket:
+            dataSocket.close()
         return False
-    return True
 
 def changeDirectory(clientSocket, directory):
-    command = f"cd {directory}\r\n"
-    response = sendCommand(clientSocket, command)
+    response = sendCommand(clientSocket, f"CWD {directory}")
     print(response)
+    return response
 
 def getFiles(clientSocket, fileName):
     pasvStatus, dataSocket = modePASV(clientSocket)
 
     if pasvStatus == 227:
-        command = f"get {fileName}\r\n"
-        response = sendCommand(clientSocket, command)
+        response = sendCommand(clientSocket, f"RETR {fileName}")
         print(response)
 
         if response.startswith('150') or response.startswith('125'):
-            fileData = b""
-            while True:
-                chunk = dataSocket.recv(4096)
-                if not chunk:
-                    break
-                fileData += chunk
-
+            bytes_count = 0
             with open(fileName, "wb") as f:
-                f.write(fileData)
+                while True:
+                    chunk = dataSocket.recv(4096)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    bytes_count += len(chunk)
 
             dataSocket.close()
 
             finalResponse = receiveData(clientSocket)
             print(finalResponse)
-
+            print(f"Success: {bytes_count} bytes transferred.")
+            return True
         else:
             print("Failed to get file")
             dataSocket.close()
             return False
     else:
         print("Failed to establish data connection")
-        dataSocket.close()
+        if dataSocket:
+            dataSocket.close()
         return False
-    return True
 
 def putFiles(clientSocket, fileName):
-    with open(fileName, "rb") as f:
-        fileData = f.read()
-
+    try:
+        with open(fileName, "rb") as f:
+            file_content = f.read()
+    except FileNotFoundError:
+        print("Local file not found.")
+        return False
 
     pasvStatus, dataSocket = modePASV(clientSocket)
 
     if pasvStatus == 227:
-        command = f"put {fileName}\r\n"
-        response = sendCommand(clientSocket, command)
+        response = sendCommand(clientSocket, f"STOR {fileName}")
         print(response)
 
         if response.startswith('150') or response.startswith('125'):
-            dataSocket.sendall(fileData)
+            dataSocket.sendall(file_content)
             dataSocket.close()
-
 
             finalResponse = receiveData(clientSocket)
             print(finalResponse)
+            print(f"Success: {len(file_content)} bytes transferred.")
+            return True
         else:
             print("Failed to put file")
             dataSocket.close()
             return False
     else:
         print("Failed to establish data connection")
-        dataSocket.close()
+        if dataSocket:
+            dataSocket.close()
+        return False
 
 
 def deleteFiles(clientSocket, fileName):
-    command = f"delete {fileName}\r\n"
-    response = sendCommand(clientSocket, command)
+    response = sendCommand(clientSocket, f"DELE {fileName}")
     print(response)
+    return response
 
 
 
@@ -212,106 +215,38 @@ def main():
             arg = cmd_input[1] if len(cmd_input) > 1 else ""
 
             if action == "quit":
-                quitFTP(clientSocket)
+                quitFunction(clientSocket)
                 break
 
             elif action == "ls":
-                p_status, dataSock = modePASV(clientSocket)
-                if p_status == 227:
-                    print(sendCommand(clientSocket, "LIST"))
-                    payload = ""
-                    while True:
-                        chunk = dataSock.recv(4096).decode("utf-8")
-                        if not chunk: break
-                        payload += chunk
-                    dataSock.close()
-                    print(payload)
-                    print(receiveData(clientSocket))
+                listFiles(clientSocket)
 
             elif action == "cd":
-                print(sendCommand(clientSocket, f"CWD {arg}"))
+                if arg:
+                    changeDirectory(clientSocket, arg)
+                else:
+                    print("Usage: cd <directory>")
 
             elif action == "delete":
-                print(sendCommand(clientSocket, f"DELE {arg}"))
+                if arg:
+                    deleteFiles(clientSocket, arg)
+                else:
+                    print("Usage: delete <filename>")
 
-            elif action in ["get", "put"]:
-                p_status, dataSock = modePASV(clientSocket)
-                if p_status == 227:
-                    if action == "get":
-                        print(sendCommand(clientSocket, f"RETR {arg}"))
-                        with open(arg, "wb") as f:
-                            bytes_count = 0
-                            while True:
-                                chunk = dataSock.recv(4096)
-                                if not chunk: break
-                                f.write(chunk)
-                                bytes_count += len(chunk)
-                    dataSock.close()
-                    print(receiveData(clientSocket))
-                    print(f"Success: {bytes_count} bytes transferred.")
-                else:  # put
-                    try:
-                        with open(arg, "rb") as f:
-                            file_content = f.read()
-                        print(sendCommand(clientSocket, f"STOR {arg}"))
-                        dataSock.sendall(file_content)
-                        dataSock.close()
-                        print(receiveData(clientSocket))
-                        print(f"Success: {len(file_content)} bytes transferred.")
-                    except FileNotFoundError:
-                        print("Local file not found.")
-                        dataSock.close()
+            elif action == "get":
+                if arg:
+                    getFiles(clientSocket, arg)
+                else:
+                    print("Usage: get <filename>")
+
+            elif action == "put":
+                if arg:
+                    putFiles(clientSocket, arg)
+                else:
+                    print("Usage: put <filename>")
 
     print("Disconnecting...")
     clientSocket.close()
 
-#def printFunc():
-#    print(f"file {fileName}")
-
-"""
-
-retrieveFilename()
-printFunc()
-print(f"file {fileName}")
-
-print("File Name: " + fileName)
-
-s
-
-
-list = ["picture.jpg", "list.img", "note.pnyb"]
-
-print("print")
-
-print("\n")
-print(list)
-print(list[2])
-word = ""
-##for (i = 0; i < 3; i++){
-##    word +1 list[i]
-##}
-
-for x in range(len(list)):
-    word += list[x]
-
-print(word)
-
-print("Username: " + username)
-print("Password: " + password)
-print("Server: " + server)
-newServer = ""
-newUsername = ""
-newPassword = ""
-
-input("New server:" + newServer)
-input("username:" + newUsername)
-input("password" + password)
-
-changeWorkingDirectory()
-retrieveFilename()
-storeFilename()
-deleteFilename()
-quitFunction()
-"""
 if __name__ == "__main__":
     main()
